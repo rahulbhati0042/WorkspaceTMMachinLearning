@@ -10,6 +10,7 @@ else:
 print(f"If GPU is being used :{tf.test.is_gpu_available()}")
 
 
+
 ## Constants Example Variable
 #Example-#2: Tensorflow Constants
 
