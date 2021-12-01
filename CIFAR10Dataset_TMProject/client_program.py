@@ -6,31 +6,51 @@ import json
 import re
 import os
 import PIL.Image
-import matplotlib.font_manager
+import base64
+import json 
+
+URL = "http://localhost:1001/uploadImages"
+
+def imageProcessing(result):
+    print("@ Image Processing...")
+    for key, value in result.items():
+        imgPath = os.path.join(sys.argv[1],key)
+        img = Image.open(imgPath)
+        toolBox = PIL.ImageDraw.Draw(img)
+        x, y = 0,25
+        font = PIL.ImageFont.truetype("OpenSans-Bold.ttf", size=7)
+        w, h = font.getsize(value)
+        xx = 32-(x + w)
+        toolBox.rectangle((xx, y, xx + w, y + h), fill='white')
+        toolBox.text((xx, 22), value, fill='black',font=font)
+        img.save(os.path.join("PredictedImage",value+"_"+key))
+
+def uploadImage(imgPath,imgName):
+    with open(imgPath, 'rb') as f:
+        im_bytes = f.read() 
+    im_b64 = base64.b64encode(im_bytes).decode("utf8")
+    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+    payload = json.dumps({"image": im_b64,"filename" : imgName})
+    response = req.request("POST",  url=URL,  data=payload, headers=headers)
+    return response
+
+def main():
 
 
-# total arguments
-n = len(sys.argv)
-print("Total arguments passed:", n)
-# Arguments passed
-print("\nName of Python script:", sys.argv[0])
-listOfFonts = matplotlib.font_manager.win32InstalledFonts()[:1]
-print("\nFolder path:", sys.argv[1])
-savedPath="G:\ThinkingMachine\WorkspaceTMMachinLearning\CIFAR10Dataset_TMProject\predictedImg"
-print("\nPredicted Image Folder Path :",savedPath)
-resp = req.request(method='POST', url="http://localhost:1001/uploadImages", data = sys.argv[1])
-test=re.sub('\'','\"',resp.text)
-dir = json.loads(test)
+    #Arguments passed - input folder path
+    uploadFolderPath=sys.argv[1]
+    print("@ Folder path:", uploadFolderPath)
+    files = os.listdir(uploadFolderPath)
+    for file in files:
+        imgPath = os.path.join(uploadFolderPath,file)
+        print("Image Path :",imgPath)
+        rs = uploadImage(imgPath,file)
+        print("@ Response :", rs.text)
+        result=re.sub('\'','\"',rs.text)
+        result = json.loads(result)
+        imageProcessing(result)
 
-for key, value in dir.items():
-    imgPath = os.path.join(sys.argv[1],key)
-    img = Image.open(imgPath)
-    toolBox = PIL.ImageDraw.Draw(img)
-    x, y = 0,25
-    font = PIL.ImageFont.truetype("G:\ThinkingMachine\WorkspaceTMMachinLearning\CIFAR10Dataset_TMProject\OpenSans-Bold.ttf", size=7)
-    w, h = font.getsize(value)
-    xx = 32-(x + w)
-    toolBox.rectangle((xx, y, xx + w, y + h), fill='white')
 
-    toolBox.text((xx, 22), value, fill='black',font=font)
-    img.save(os.path.join(savedPath,value+"_"+key))
+if __name__ == '__main__':
+    main()
+

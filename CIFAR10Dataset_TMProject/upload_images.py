@@ -1,54 +1,64 @@
+from genericpath import samefile
 from http.server import HTTPServer,BaseHTTPRequestHandler
 import os
 import cv2
 import tensorflow as tf
+import json
+import base64
+import PIL.Image as Image
+import io
 
 from keras.models import load_model
 import numpy as np
 
 class helloHandler(BaseHTTPRequestHandler):
 
-    def do_POST(self):
-         cifar_classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+    def saveImg(self,request):
+        print("@ Saveimg function calling...")
+        img_bytes = base64.b64decode(request['image'].encode('utf-8'))
+        # convert bytes data to PIL Image object
+        image = Image.open(io.BytesIO(img_bytes))
+        imgFile=os.path.join("rowimages",request["filename"])
+        image.save(imgFile)
+        return self.predictImg(imgFile,request["filename"])
 
+    def predictImg(self,imgFile,filename):
+        print("@ predictImg funciton calling...")
+        print("@ Image Path :",imgFile)
+        imageData= cv2.imread(imgFile)
+        predImageData=imageData.reshape(1,32*32*3)
+        predImageData = (predImageData-np.mean(predImageData))/np.std(predImageData)
+        pred = self.model.predict(predImageData) 
+        print("@ Predicted Result :",pred)
+        pred = np.argmax(pred)
+        print("@ Predicted Data :",pred)
+        print("@ Predicted Label:",self.cifar_classes[pred])
+        dir_Response = {}
+        dir_Response[filename]=self.cifar_classes[pred]
+        return dir_Response
+
+    def do_POST(self):
+         self.cifar_classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog',
+          'frog', 'horse', 'ship', 'truck']
+         self.model =load_model('model\my_first_model.h5')
+ 
+         print('@@ Model loaded')
          if self.path.endswith('/uploadImages'):
             content_length = int(self.headers['Content-Length'])
-            body = (self.rfile.read(content_length)).decode('utf-8')
             
-            files = os.listdir(body)
-            model =load_model('G:\ThinkingMachine\WorkspaceTMMachinLearning\CIFAR10Dataset_TMProject\model\my_first_model.h5')
- 
-            print('@@ Model loaded')
-            dir_Response = {}
-            for f in files:
-                imagefile=os.path.join(body, f)
-                print("filane name :",imagefile)
-                imageData= cv2.imread(imagefile)
-                cv2.imwrite("G:/ThinkingMachine/WorkspaceTMMachinLearning/CIFAR10Dataset_TMProject/imgs/"+f,imageData)
-                #test_image = load_img("G:/ThinkingMachine/WorkspaceTMMachinLearning/CIFAR10Dataset_TMProject/imgs/"+f) # load image 
-                print("@@ Got Image for prediction")
-                predImageData=imageData.reshape(1,32*32*3)
-                predImageData = (predImageData-np.mean(predImageData))/np.std(predImageData)
-                pred = model.predict(predImageData) 
-                print("Predicted Result :",pred)
-                pred = np.argmax(pred)
-                print("Predicted Data :",pred)
-                print("Predicted Label:",cifar_classes[pred])
-                dir_Response[f]=cifar_classes[pred]
-
-            
-                
+            request = (self.rfile.read(content_length))
+            dir = json.loads(request)
+            predictedResult = self.saveImg(dir) 
             self.send_response(200)
             self.send_header('content-type', 'text/html')
             self.end_headers()
-            self.wfile.write(str(dir_Response).encode())
+            self.wfile.write(str(predictedResult).encode())
         
          else:
             self.send_response(200)
             self.send_header('content-type', 'text/html')
             self.end_headers()
             self.wfile.write('Post Hello Control'.encode())
-
 
 def main():
     PORT = 1001
